@@ -1,15 +1,19 @@
-import qutip as qt
+import numpy as np
+import matplotlib.pyplot as plt
 
-# Define Pauli spin matrices
-sigma_x = qt.sigmax()
-sigma_y = qt.sigmay()
-sigma_z = qt.sigmaz()
+N = 100  # Number of spins
+spins = np.random.choice([-1, 1], size=N)  # Initialize spins randomly
 
-# Define the ground and excited states
-ground_state = qt.basis(2, 0)
-excited_state = qt.basis(2, 1)
+J = 1  # Interaction strength
 
-# Print states
-print("Ground State:\n", ground_state)
-print("Excited State:\n", excited_state)
+def ising_hamiltonian(spins, J):
+    return -J * np.sum(spins[:-1] * spins[1:])
 
+energy = ising_hamiltonian(spins, J)
+print("Initial Energy of the system:", energy)
+
+plt.figure(figsize=(10, 2))
+plt.scatter(range(N), spins, c=spins, cmap='bwr', marker='_', lw=2)
+plt.ylim(-1.5, 1.5)
+plt.title('Initial Random Spin Configuration')
+plt.savefig('spin_configuration.png')
