@@ -29,17 +29,68 @@ def construct_mpo(N, J, h):
         mpo.append(mpo_tensor)
     return mpo
 
+import numpy as np
+
 def optimize_tensor(tensor, neighbors, mpo):
-    # Placeholder for tensor optimization logic
+    # Assuming 'tensor' is the central tensor and 'neighbors' is a tuple (left_tensor, right_tensor)
+    # 'mpo' is the matrix product operator corresponding to the local Hamiltonian terms
+    
+    # Contract tensor with its neighbors and the MPO
+    # This is a simplified placeholder for the contraction operation
+    left, right = neighbors
+
+    # Debugging print statements
+    print("Initial left tensor shape:", left.shape)
+    print("Initial right tensor shape:", right.shape)
+    print("MPO shape:", mpo.shape)
+
+    try:
+        # Adjust tensor dimensions if necessary
+        if left.shape[2] != right.shape[1]:
+            min_dim = min(left.shape[2], right.shape[1])
+            left = left[:, :, :min_dim]
+            right = right[:, :min_dim, :]
+            print("Adjusted left shape:", left.shape)
+            print("Adjusted right shape:", right.shape)
+
+        # Perform tensor contraction
+        left_mpo = np.tensordot(left, mpo, axes=([2], [0]))
+        local_hamiltonian = np.tensordot(left_mpo, right, axes=([2], [1]))
+        print("Local Hamiltonian shape:", local_hamiltonian.shape)
+
+    except ValueError as e:
+        print("Error during tensor contraction:", e)
+        raise
+  
+    # Reshape for SVD
+    tensor_shape = tensor.shape
+    matrix_form = tensor.reshape((tensor_shape[0] * tensor_shape[1], tensor_shape[2]))
+    
+    # Apply SVD
+    U, S, Vh = np.linalg.svd(matrix_form, full_matrices=False)
+    
+    # Truncate the SVD results to retain only the most significant components
+    chi = min(len(S), 10)  # Example: keep up to 10 singular values
+    U = U[:, :chi]
+    S = np.diag(S[:chi])
+    Vh = Vh[:chi, :]
+    
+    # Update the tensor
+    tensor = np.dot(U, np.dot(S, Vh)).reshape(tensor_shape)
+    
+    # Normalize the tensor if necessary
+    norm = np.linalg.norm(tensor)
+    tensor /= norm
+    
     return tensor
 
 def dmrg_sweep(mps, mpo, direction):
     if direction == 'left_to_right':
-        for i in range(len(mps) - 1):
-            mps[i] = optimize_tensor(mps[i], (mps[i-1], mps[i+1]), mpo)
+        for i in range(1, len(mps) - 1):  # start from 1 to avoid boundary issue with mps[0]
+            mps[i] = optimize_tensor(mps[i], (mps[i-1], mps[i+1]), mpo[i])
     else:
-        for i in range(len(mps) - 1, 0, -1):
-            mps[i] = optimize_tensor(mps[i], (mps[i-1], mps[i+1]), mpo)
+        for i in range(len(mps) - 2, 0, -1):  # go to len(mps) - 2 to avoid boundary issue with mps[-1]
+            mps[i] = optimize_tensor(mps[i], (mps[i+1], mps[i-1]), mpo[i])
     return mps
 
 # Parameters
