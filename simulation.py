@@ -31,37 +31,58 @@ def construct_mpo(N, J, h):
 
 import numpy as np
 
-def optimize_tensor(tensor, neighbors, mpo):
-    # Assuming 'tensor' is the central tensor and 'neighbors' is a tuple (left_tensor, right_tensor)
-    # 'mpo' is the matrix product operator corresponding to the local Hamiltonian terms
-    
-    # Contract tensor with its neighbors and the MPO
-    # This is a simplified placeholder for the contraction operation
+def optimize_tensor(tensor, neighbors, mpo, is_edge):
     left, right = neighbors
+    
+    # Debug statement to see where we are at before beginning.
+    print(f"Optimizing tensor with left shape {left.shape}, right shape {right.shape}, and MPO shape {mpo.shape}")
+    
+    if is_edge:
+        print("Processing an edge tensor.")
 
-    # Debugging print statements
-    print("Initial left tensor shape:", left.shape)
-    print("Initial right tensor shape:", right.shape)
-    print("MPO shape:", mpo.shape)
+    # Assuming you need to adjust the MPO tensor shape for correct contraction:
+    # The goal is to ensure dimensions of left.shape[2] and mpo.shape[2] match for contraction
+    mpo_adjusted = mpo.transpose(2, 3, 0, 1)  # This changes the MPO configuration to (4, 4, 2, 2)
+    #mpo_adjusted = mpo.transpose(2, 0, 1, 3)
+
+
+    # Check dimensions before contracting
+    if left.shape[2] != mpo_adjusted.shape[0]:
+        print("Mismatch in dimensions between left tensor and MPO:")
+        print(f"Left dimension: {left.shape[2]}, MPO dimension: {mpo_adjusted.shape[0]}")
+        # Adjust the logic or raise an error
+        raise ValueError("Dimension mismatch for contraction")
 
     try:
-        # Adjust tensor dimensions if necessary
-        if left.shape[2] != right.shape[1]:
-            min_dim = min(left.shape[2], right.shape[1])
-            left = left[:, :, :min_dim]
-            right = right[:, :min_dim, :]
-            print("Adjusted left shape:", left.shape)
-            print("Adjusted right shape:", right.shape)
+        # Contract the left tensor with the MPO
+        # Axes: Last of left (bond dimension) with first of MPO
+        left_mpo = np.tensordot(left, mpo_adjusted, axes=([2], [0]))
+        print("Shape after contracting left with MPO:", left_mpo.shape)
 
-        # Perform tensor contraction
-        left_mpo = np.tensordot(left, mpo, axes=([2], [0]))
+        # Now contract this result with the right tensor
+        # Axes: Last of the result (from MPO) with second of right (bond dimension)
         local_hamiltonian = np.tensordot(left_mpo, right, axes=([2], [1]))
         print("Local Hamiltonian shape:", local_hamiltonian.shape)
 
     except ValueError as e:
         print("Error during tensor contraction:", e)
         raise
-  
+        
+    '''
+    try:
+        left_mpo = np.tensordot(left, mpo_adjusted, axes=([2], [0]))
+        print("Shape after contracting Left with MPO:", left_mpo.shape)
+
+        # Determine the correct axes for the final contraction
+        final_axes = ([2, 3], [0, 1])  # This is an example; adjust based on your specific dimensions
+        local_hamiltonian = np.tensordot(left_mpo, right, axes=final_axes)
+        print("Local Hamiltonian Shape:", local_hamiltonian.shape)
+
+    except ValueError as e:
+        print("Error during tensor contraction:", e)
+        raise
+    '''
+
     # Reshape for SVD
     tensor_shape = tensor.shape
     matrix_form = tensor.reshape((tensor_shape[0] * tensor_shape[1], tensor_shape[2]))
@@ -87,10 +108,12 @@ def optimize_tensor(tensor, neighbors, mpo):
 def dmrg_sweep(mps, mpo, direction):
     if direction == 'left_to_right':
         for i in range(1, len(mps) - 1):  # start from 1 to avoid boundary issue with mps[0]
-            mps[i] = optimize_tensor(mps[i], (mps[i-1], mps[i+1]), mpo[i])
+            is_edge = (i == 1) or (i == len(mps) - 2)  # Check if the tensor is the second or second-last tensor
+            mps[i] = optimize_tensor(mps[i], (mps[i-1], mps[i+1]), mpo[i], is_edge)
     else:
         for i in range(len(mps) - 2, 0, -1):  # go to len(mps) - 2 to avoid boundary issue with mps[-1]
-            mps[i] = optimize_tensor(mps[i], (mps[i+1], mps[i-1]), mpo[i])
+            is_edge = (i == 1) or (i == len(mps) - 2)  # Check if the tensor is the second or second-last tensor
+            mps[i] = optimize_tensor(mps[i], (mps[i+1], mps[i-1]), mpo[i], is_edge)
     return mps
 
 # Parameters
@@ -103,7 +126,7 @@ mps = initialize_mps(N)
 mpo = construct_mpo(N, J, h)
 
 # Perform DMRG sweeps
-num_sweeps = 10
+num_sweeps = 1
 for _ in range(num_sweeps):
     mps = dmrg_sweep(mps, mpo, 'left_to_right')
     mps = dmrg_sweep(mps, mpo, 'right_to_left')
