@@ -39,20 +39,32 @@ def optimize_tensor(tensor, neighbors, mpo, is_edge):
         
     mpo_adjusted = mpo.transpose(2, 3, 0, 1)  # Normal MPO adjustment
 
+    '''
     if is_edge:
         print("Processing an edge tensor.")
         # Adjust the MPO shape based on whether the edge tensor is on the left or right side of the chain
         if left.shape[1] == 1:  # Left edge tensor
-            mpo_adjusted = mpo.transpose(2, 3, 0, 1)[:, :, :, :1]  # Reduce the MPO to match the left tensor's bond dimension
+            mpo_adjusted = mpo.transpose(2, 3, 0, 1)[:, :, :, :left.shape[2]]  # Match the left tensor's bond dimension
         elif right.shape[1] == 1:  # Right edge tensor
-            mpo_adjusted = mpo.transpose(2, 3, 0, 1)[:, :, :1, :]  # Reduce the MPO to match the right tensor's bond dimension
+            mpo_adjusted = mpo.transpose(2, 3, 0, 1)[:, :, :right.shape[2], :]  # Match the right tensor's bond dimension
+    '''
 
+    if is_edge:
+        print("Processing an edge tensor.")
+        # Check if the edge tensor is the left or right tensor and adjust the MPO dimensions accordingly
+        if left.shape[1] == 1:  # Left edge tensor
+            mpo_adjusted = mpo_adjusted[:, :, :, :left.shape[2]]  # Adjust the last dimension of MPO to match left tensor's bond dimension
+        elif right.shape[1] == 1:  # Right edge tensor
+            mpo_adjusted = mpo_adjusted[:, :, :right.shape[2], :]  # Adjust the third dimension of MPO to match right tensor's bond dimension
+
+    
     # Check dimensions before contracting
     if left.shape[2] != mpo_adjusted.shape[0]:
         print("Mismatch in dimensions between left tensor and MPO:")
         print(f"Left dimension: {left.shape[2]}, MPO dimension: {mpo_adjusted.shape[0]}")
         # Adjust the logic or raise an error
         raise ValueError("Dimension mismatch for contraction")
+    
 
     try:
         # Contract the left tensor with the MPO
@@ -68,21 +80,6 @@ def optimize_tensor(tensor, neighbors, mpo, is_edge):
     except ValueError as e:
         print("Error during tensor contraction:", e)
         raise
-        
-    '''
-    try:
-        left_mpo = np.tensordot(left, mpo_adjusted, axes=([2], [0]))
-        print("Shape after contracting Left with MPO:", left_mpo.shape)
-
-        # Determine the correct axes for the final contraction
-        final_axes = ([2, 3], [0, 1])  # This is an example; adjust based on your specific dimensions
-        local_hamiltonian = np.tensordot(left_mpo, right, axes=final_axes)
-        print("Local Hamiltonian Shape:", local_hamiltonian.shape)
-
-    except ValueError as e:
-        print("Error during tensor contraction:", e)
-        raise
-    '''
 
     # Reshape for SVD
     tensor_shape = tensor.shape
