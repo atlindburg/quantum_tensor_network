@@ -36,6 +36,8 @@ def optimize_tensor(tensor, neighbors, mpo, is_edge):
     
     # Debug statement to see where we are at before beginning.
     print(f"Optimizing tensor with left shape {left.shape}, right shape {right.shape}, and MPO shape {mpo.shape}")
+        
+    mpo_adjusted = mpo.transpose(2, 3, 0, 1)  # Normal MPO adjustment
 
     if is_edge:
         print("Processing an edge tensor.")
@@ -44,9 +46,6 @@ def optimize_tensor(tensor, neighbors, mpo, is_edge):
             mpo_adjusted = mpo.transpose(2, 3, 0, 1)[:, :, :, :1]  # Reduce the MPO to match the left tensor's bond dimension
         elif right.shape[1] == 1:  # Right edge tensor
             mpo_adjusted = mpo.transpose(2, 3, 0, 1)[:, :, :1, :]  # Reduce the MPO to match the right tensor's bond dimension
-    else:
-        mpo_adjusted = mpo.transpose(2, 3, 0, 1)  # Normal MPO adjustment
-
 
     # Check dimensions before contracting
     if left.shape[2] != mpo_adjusted.shape[0]:
